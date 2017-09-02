@@ -48,7 +48,7 @@
 
 				var animation_duration = duration;
 
-        var width = 700,
+        var width = 725,
             height = 300
 
         var groups = {
@@ -79,10 +79,10 @@
         var line = d3.svg.line()
             .interpolate('basis')
             .x(function(d, i) {
-                return x(start - (limit - 1 - i) * duration)
+                return x(start - (limit - 1 - i) * duration);
             })
             .y(function(d) {
-                return y(d)
+                return y(d) 
             })
 
         var svg = d3.select('.graph').append('svg')
@@ -93,12 +93,14 @@
         var axis = svg.append('g')
             .attr('class', 'x axis')
             .attr('transform', 'translate(0,' + height + ')')
-            .call(x.axis = d3.svg.axis().scale(x).orient('bottom'))
+            .call(x.axis = d3.svg.axis().scale(x).orient('bottom'));
 
+	
+				var yscale = d3.svg.axis().scale(y).orient('left').tickValues(d3.range(10,100,10));
         var yaxis = svg.append('g')
         	.attr('class','y axis')
         	.attr('transform', 'translate(25,0)')
-        	.call(yaxis = d3.svg.axis().scale(y).orient('left').ticks(5));
+        	.call(yaxis = yscale);
 
         var paths = svg.append('g')
 
@@ -122,8 +124,8 @@
 						//console.log("Popped from queue:",que);
 
 						//now = new Date();
-						//now = new Date(start.getTime() + parseFloat(m['t']));
-						now = new Date(start.getTime());
+						now = new Date(start.getTime() + parseFloat(m['t']));
+						//now = new Date(start.getTime());
 
             // Add new values
             for (var name in groups) {
@@ -174,6 +176,7 @@
 					}
 
 					que.push(m);
+console.log(m);
 				});
 
 				tick();
