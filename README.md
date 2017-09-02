@@ -20,10 +20,20 @@ droptail buffers, with live plotting:
 
 `mm-live mm-delay 25 mm-link --uplink-queue="droptail" --uplink-queue-args="packets=100" --uplink-log=test.log ~/bw12.mahi ~/bw48.mahi`
 
-This will create a server on port 8088. If the ip address of your server is
+This will create a server on port 8088. If the IP address of your server is
 1.2.3.4, you can view it from the following URL in your browser:
 
-1.2.3.4:8088/
+`1.2.3.4:8088/`
+
+The plot will look something like this (throughput in Mbps plotted in purple,
+delay in ms plotted in blue):
+
+![Example Screenshot](/screenshot.png)
+
+The UI is very plain and does not automatically adjust well to differnet
+scenarios at the moment. It also doesn't yet support differentiating multiple
+flows, it just shows aggregate throughput leaving the entire shell. Improving
+the plotting is future work.
 
 Dependencies
 ============
