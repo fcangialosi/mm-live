@@ -4,6 +4,12 @@
         font-size: 20px;
         font-family: 'Helvetica Neue';
     }
+    .yaxis {
+        fill: #183660;
+    }
+    .y2axis {
+        fill: #9E0000;
+    }
     .line {
         fill: none;
         stroke: #f1c40f;
@@ -11,7 +17,7 @@
     }
     .smoothline {
         fill: none;
-        stroke: #d466ee;
+        //stroke: #d466ee;
         stroke-width: 3px;
     }
     .area {
@@ -41,17 +47,26 @@
 </div>
 <script src="http://d3js.org/d3.v4.min.js"></script>
 <script>
-    var data = [
-    ];
+    var groups = {
+        sum : {
+            data : [],
+            color : '#183660',
+        },
+        delay : {
+            data : [],
+            color : '#9E0000',
+        }
+    };
+    var q = [{'t' : 0, 'sum' : 0, 'delay' : 0}]
     var width = 800;
     var height = 400;
     var g_left = 0;
     var g_right = 750;
     var g_bottom = height - 100;
     var globalX = 0;
-    var duration = 200;
+    var duration = 500;
     var max = 10;
-    var step = 0.2;
+    var step = 0.5;
     var max_points = (max / step);
 
     var chart = d3.select('#chart')
@@ -74,16 +89,16 @@
 
     // Draw the axis
     var xAxis = d3.axisBottom().scale(x);
-    var axisX = chart.append('g').attr('class', 'x axis')
+    var axisX = chart.append('g').attr('class', 'xaxis axis')
                  .attr('transform', 'translate(' + g_left + ', ' + g_bottom + ')')
                  .call(xAxis);
 
     var yAxis = d3.axisLeft().scale(y);
-    var axisY = svg_y1.append('g').attr('class', 'y axis')
+    var axisY = svg_y1.append('g').attr('class', 'yaxis axis')
                  .attr('transform', 'translate(100,0)')
                  .call(yAxis);
     var y2Axis = d3.axisRight().scale(y2);
-    var axisY2 = svg_y2.append('g').attr('class', 'y2 axis')
+    var axisY2 = svg_y2.append('g').attr('class', 'y2axis axis')
                  .attr('transform', 'translate(1,0)')
                  .call(y2Axis);
     // -----------------------------------
@@ -114,46 +129,88 @@
 
 
     // Append the holder for line chart and fill area
-    var path = chart.append('path');
+    var paths = chart.append('g');
+    for (var name in groups) {
+        var group = groups[name]
+        group.path = paths.append('path')
+                        .datum(group.data)
+                        .attr('stroke', group.color);
+    }
+    //var path = chart.append('path');
     // var areaPath = chart.append('path');
     // Main loop
+    var waiting = false;
     function tick() {
         // Generate new data
-        var point = {
-            x: globalX,
-            y: ((Math.random() * 200 + 50) >> 0)
-        };
-        data.push(point);
-        globalX += step;
-        // Draw new line
-        path.datum(data)
-            .attr('class', 'smoothline')
-            .attr('d', smoothLine)
 
-        // Draw new fill area
-        // areaPath.datum(data)
-        //    .attr('class', 'area')
-        //    .attr('d', lineArea);
-        // Shift the chart left
+
+        if (q.length <= 0) {
+            waiting = true;
+            return;
+        }
+        waiting = false;
+
+        var m = q.shift();
+        globalX = m['t']
+
+        console.log(globalX);
+        for (var name in groups) {
+            var group = groups[name];
+            group.data.push({
+                x : globalX,
+                y: m[name] // ((Math.random() * 200 + 50) >> 0) // m[name],
+            });
+            group.path.attr('d', smoothLine)
+                .attr('class', 'smoothline');
+
+        }
+        //globalX += step;
+
+        console.log(x(globalX - max))
+
         x.domain([globalX - (max - step), globalX]);
         axisX.transition()
              .duration(duration)
              .ease(d3.easeLinear,2)
              .call(xAxis);
-        path.attr('transform', null)
+        paths.attr('transform', null)
             .transition()
             .duration(duration)
             .ease(d3.easeLinear,2)
             .attr('transform', 'translate(' + x(globalX - max) + ')')
             .on('end', tick)
-        // areaPath.attr('transform', null)
-           //  .transition()
-           //  .duration(duration)
-           //  .ease(d3.easeLinear,2)
-           //  .attr('transform', 'translate(' + x(globalX - max) + ')')
-           //  .on('end', tick)
-        // Remote old data (max 50 points)
-        if (data.length > max_points) data.shift();
+        if (globalX > max_points) {
+            for (var name in groups) {
+                groups[name].data.shift();
+            }
+        }
     }
+
     tick();
+
+    var t = 0;
+    setInterval(function() {
+        console.log("timeout!");
+        var before = q.length;
+        q.push({
+            t: t,
+            sum: ((Math.random() * 200 + 50) >> 0),
+            delay: ((Math.random() * 200 + 50) >> 0)
+        });
+        t+=0.5;
+        if (waiting) {
+            tick();
+        }
+    }, 700);
+
+    wsock = new WebSocket("ws://localhost:8080");
+    wsock.onopen = function(e) {
+        console.log("Connected!");
+    };
+    wsock.onmessage = function(e) {
+        // msg = {t :, sum :, delay : }
+        q.push(JSON.parse(e.data));
+        if (waiting) tick();
+    };
+
 </script>
