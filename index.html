@@ -1,190 +1,159 @@
-<!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="utf-8">
+<style>
+    .axis {
+        font-family: sans-serif;
+        font-size: 20px;
+        font-family: 'Helvetica Neue';
+    }
+    .line {
+        fill: none;
+        stroke: #f1c40f;
+        stroke-width: 3px;
+    }
+    .smoothline {
+        fill: none;
+        stroke: #d466ee;
+        stroke-width: 3px;
+    }
+    .area {
+        fill: #e74c3c;
+        opacity: 0.5;
+    }
+    .circle {
+        stroke: #e74c3c;
+        stroke-width: 3px;
+        fill: #FFF;
+    }
+    .grid {
+        stroke: #EEE;
+        stroke-width: 1px;
+        fill: none;
+    }
+    .dark-grid {
+        stroke: #000;
+        stroke-width: 2px;
+        fill: none;
+    }
+</style>
+<div style="display:inline">
+<svg id="y1axis" width="102"></svg>
+<svg id="chart"></svg>
+<svg id="y2axis"></svg>
+</div>
+<script src="http://d3js.org/d3.v4.min.js"></script>
+<script>
+    var data = [
+    ];
+    var width = 800;
+    var height = 400;
+    var g_left = 0;
+    var g_right = 750;
+    var g_bottom = height - 100;
+    var globalX = 0;
+    var duration = 200;
+    var max = 10;
+    var step = 0.2;
+    var max_points = (max / step);
 
-        <style>
-        body {
-            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-        }
+    var chart = d3.select('#chart')
+    .attr('width', g_right)
+    .attr('height', height);
+    var svg_y1 = d3.select('#y1axis')
+    .attr('height', height);
+    var svg_y2 = d3.select('#y2axis')
+    .attr('height', height);
+    var x = d3.scaleLinear().domain([0, width]).range([0, width]);
+    var y = d3.scaleLinear().domain([0, g_bottom]).range([g_bottom, 0]);
+    var y2 = d3.scaleLinear().domain([0, g_bottom]).range([g_bottom, 0]);
+    // -----------------------------------
+    var line = d3.line()
+                        .x(function(d){ return x(d.x); })
+                        .y(function(d){ return y(d.y); });
+    var smoothLine = d3.line().curve(d3.curveBasis)
+                        .x(function(d){ return x(d.x); })
+                        .y(function(d){ return y(d.y); });
 
-        .graph .axis {
-            stroke-width: 1;
-        }
+    // Draw the axis
+    var xAxis = d3.axisBottom().scale(x);
+    var axisX = chart.append('g').attr('class', 'x axis')
+                 .attr('transform', 'translate(' + g_left + ', ' + g_bottom + ')')
+                 .call(xAxis);
 
-        .graph .axis .tick line {
-            stroke: black;
-        }
-
-        .graph .axis .tick text {
-            fill: black;
-            font-size: 0.7em;
-        }
-
-        .graph .axis .domain {
-            fill: none;
-            stroke: black;
-        }
-
-        .graph .group {
-            fill: none;
-            stroke: black;
-            stroke-width: 1.5;
-        }
-        </style>
-    </head>
-    <body>
-        <div class="graph" style="margin-left:50px;margin-top:50px;"></div>
-
-        <script src="http://d3js.org/d3.v3.min.js"></script>
-				<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.0.1/socket.io.js"></script>
-        <script>
-
+    var yAxis = d3.axisLeft().scale(y);
+    var axisY = svg_y1.append('g').attr('class', 'y axis')
+                 .attr('transform', 'translate(100,0)')
+                 .call(yAxis);
+    var y2Axis = d3.axisRight().scale(y2);
+    var axisY2 = svg_y2.append('g').attr('class', 'y2 axis')
+                 .attr('transform', 'translate(1,0)')
+                 .call(y2Axis);
+    // -----------------------------------
+    // Draw the grid
+    for (var col = 50; col < width; col+= 50) {
+        chart.append('path').datum([{x: col, y: 0}, {x: col, y: g_bottom}])
+                    .attr('class', 'grid')
+                    .attr('d', line);
+    }
+    chart.append('path').datum([{x: 0, y: 150}, {x: width, y: 150}])
+                        .attr('class', 'grid')
+                        .attr('d', line);
+    chart.append('path').datum([{x: 0, y: 300}, {x: width, y: 300}])
+                        .attr('class', 'grid')
+                        .attr('d', line);
+    chart.append('path').datum([{x: 0, y: 450}, {x: width, y: 450}])
+                        .attr('class', 'grid')
+                        .attr('d', line);
 
 
-        var limit = 60 * 1,
-            duration = 500,
-            start = new Date(Date.now() - duration)
+    // -----------------------------------
+    // Draw the axis labels
+    chart.append('text')
+            .attr('class', 'axis')
+            .attr('transform', 'translate(' + (width / 2) + ',' + (g_bottom + 70) + ')')
+            .style('text-anchor', 'middle')
+            .text('Time (seconds since start)')
 
-				var animation_duration = duration;
 
-        var width = 725,
-            height = 300
+    // Append the holder for line chart and fill area
+    var path = chart.append('path');
+    // var areaPath = chart.append('path');
+    // Main loop
+    function tick() {
+        // Generate new data
+        var point = {
+            x: globalX,
+            y: ((Math.random() * 200 + 50) >> 0)
+        };
+        data.push(point);
+        globalX += step;
+        // Draw new line
+        path.datum(data)
+            .attr('class', 'smoothline')
+            .attr('d', smoothLine)
 
-        var groups = {
-            sum: {
-                value: 0,
-                color: 'purple',
-                data: d3.range(limit).map(function() {
-                    return 0
-                })
-            },
-            delay: {
-                value: 0,
-                color: '#56b4e9',
-                data: d3.range(limit).map(function() {
-                    return 0
-                })
-            }
-        }
-
-        var x = d3.time.scale()
-            .domain([start - (limit - 2), start - duration])
-            .range([0, width])
-
-        var y = d3.scale.linear()
-            .domain([0, 100])
-            .range([height, 0])
-
-        var line = d3.svg.line()
-            .interpolate('basis')
-            .x(function(d, i) {
-                return x(start - (limit - 1 - i) * duration);
-            })
-            .y(function(d) {
-                return y(d) 
-            })
-
-        var svg = d3.select('.graph').append('svg')
-            .attr('class', 'chart')
-            .attr('width', width)
-            .attr('height', height + 50)
-
-        var axis = svg.append('g')
-            .attr('class', 'x axis')
-            .attr('transform', 'translate(0,' + height + ')')
-            .call(x.axis = d3.svg.axis().scale(x).orient('bottom'));
-
-	
-				var yscale = d3.svg.axis().scale(y).orient('left').tickValues(d3.range(10,100,10));
-        var yaxis = svg.append('g')
-        	.attr('class','y axis')
-        	.attr('transform', 'translate(25,0)')
-        	.call(yaxis = yscale);
-
-        var paths = svg.append('g')
-
-        for (var name in groups) {
-            var group = groups[name]
-            group.path = paths.append('path')
-                .data([group.data])
-                .attr('class', name + ' group')
-                .style('stroke', group.color)
-        }
-
-				var que = [{'t':0,'sum':0,'delay':0}];
-
-        function tick() {
-						// Get next queue element
-					/*
-						if (que.length <= 0) {
-							setTimeout(tick, duration);
-							return;
-						}
-						var m = que.shift();
-						*/
-						//console.log("Popped from queue:",que);
-
-						now = new Date();
-						//now = new Date(start.getTime() + parseFloat(m['t']));
-						//now = new Date(start.getTime());
-
-            // Add new values
-            for (var name in groups) {
-                var group = groups[name]
-                //group.data.push(group.value) // Real values arrive at irregular intervals
-                group.data.push(Math.random() * 100)
-               // group.data.push(m[name]);
-                group.path.attr('d', line)
-
-            }
-
-            // Shift domain
-            x.domain([now - (limit - 2) * duration, now - duration])
-
-            // Slide x-axis left
-            axis.transition()
-                .duration(duration)
-                .ease('linear')
-                .call(x.axis)
-
-            // Slide paths left
-            paths.attr('transform', null)
-                .transition()
-                .duration(animation_duration)
-                .ease('linear')
-                .attr('transform', 'translate(' + x(now - (limit - 1) * duration) + ')')
-                .each('end', tick)
-
-            // Remove oldest data point from each group
-            for (var name in groups) {
-                var group = groups[name]
-                group.data.shift()
-            }
-        }
-
-				/*
-				var socket = io();
-
-				var last = 0, beta = 50;
-				socket.on('data', function(m) {
-					var curr = que.length;
-
-					if ((curr-last) <= -2) {
-						animation_duration += beta;
-						last = 0;
-					} else if ((curr-last) >= 3) {
-						animation_duration -= beta;
-						last = curr;
-					}
-
-					que.push(m);
-console.log(m);
-				});
-				*/
-
-				tick();
-
-        </script>
-    </body>
-</html>
+        // Draw new fill area
+        // areaPath.datum(data)
+        //    .attr('class', 'area')
+        //    .attr('d', lineArea);
+        // Shift the chart left
+        x.domain([globalX - (max - step), globalX]);
+        axisX.transition()
+             .duration(duration)
+             .ease(d3.easeLinear,2)
+             .call(xAxis);
+        path.attr('transform', null)
+            .transition()
+            .duration(duration)
+            .ease(d3.easeLinear,2)
+            .attr('transform', 'translate(' + x(globalX - max) + ')')
+            .on('end', tick)
+        // areaPath.attr('transform', null)
+           //  .transition()
+           //  .duration(duration)
+           //  .ease(d3.easeLinear,2)
+           //  .attr('transform', 'translate(' + x(globalX - max) + ')')
+           //  .on('end', tick)
+        // Remote old data (max 50 points)
+        if (data.length > max_points) data.shift();
+    }
+    tick();
+</script>
