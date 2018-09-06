@@ -6,7 +6,7 @@ rm -f /tmp/uplink.log
 touch /tmp/uplink.log
 
 # start following log and feeding to web server
-tail -f /tmp/uplink.log | python live.py 500 | node index.js > server.log 2>&1 &
+tail -f /tmp/uplink.log | python live.py 50 | node index.js > server.log 2>&1 &
 
 # run inner shell
 $@ --uplink-log=/tmp/uplink.log

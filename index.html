@@ -1,219 +1,248 @@
-<!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="utf-8">
-
-        <style>
-        body {
-            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+<style>
+    .axis {
+        font-family: sans-serif;
+        font-size: 26px;
+        font-family: 'Source Code Pro for Powerline';
+        font-weight: bold;
+    }
+    .yaxis {
+        fill: #9E0000;
+            stroke-width: 2px;
+    }
+    .y2axis {
+        fill: #00B2EE;
+            stroke-width: 2px;
+    }
+    .yaxis.ticks {
+        fill: #ce6767;
+    }
+    .y2axis.ticks {
+        fill: #7cceea;
+    }
+    .xaxis {
+        stroke-width: 2px;
+    }
+    .line {
+        fill: none;
+        stroke: #f1c40f;
+        stroke-width: 3px;
+    }
+    .smoothline {
+        fill: none;
+        //stroke: #d466ee;
+        stroke-width: 3px;
+    }
+    .area {
+        fill: #e74c3c;
+        opacity: 0.5;
+    }
+    .circle {
+        stroke: #e74c3c;
+        stroke-width: 3px;
+        fill: #FFF;
+    }
+    .grid {
+        stroke: #EEE;
+        stroke-width: 1px;
+        fill: none;
+    }
+    .dark-grid {
+        stroke: #000;
+        stroke-width: 2px;
+        fill: none;
+    }
+</style>
+<div style="">
+<svg id="y1axis" width="100" style="position:absolute;left:200;"></svg>
+<svg id="chart" style="position:absolute;left:300;"></svg>
+<svg id="y2axis" style="position:absolute;left:1454;"></svg>
+</div>
+<script src="http://d3js.org/d3.v4.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.0.1/socket.io.js"></script>
+<script>
+    var groups = {
+        sum : {
+            data : [],
+            color : '#9E0000',
+            yax : 1
+        },
+        delay : {
+            data : [],
+            color : '#00B2EE',
+            yax : 2
         }
+    };
+    var q = [{'t' : 0, 'sum' : 0, 'delay' : 0}]
+    var width = 1200;
+    var height = 450;
+    var g_left = 0;
+    var g_right = 1150;
+    var g_bottom = height - 100;
+    var globalX = 0;
+    var duration = 50;
+    var max = 10;
+    var step = (duration / 1000);
+    var max_points = (max / step);
+    var max_y1 = 100;
+    var step_y1 = 10;
+    var max_y2 = 60;
+    var step_y2 = 10;
 
-        .graph .axis {
-            stroke-width: 1;
+    var chart = d3.select('#chart')
+    .attr('width', g_right)
+    .attr('height', height);
+    var svg_y1 = d3.select('#y1axis')
+    .attr('height', height);
+    var svg_y2 = d3.select('#y2axis')
+    .attr('height', height);
+    var x = d3.scaleLinear().domain([0, width]).range([0, width]);
+    var y = d3.scaleLinear().domain([0, max_y1]).range([g_bottom, 0]);
+    var y2 = d3.scaleLinear().domain([0, max_y2]).range([g_bottom, 0]);
+    // -----------------------------------
+    var line = d3.line()
+                        .x(function(d){ return x(d.x); })
+                        .y(function(d){ return y(d.y); });
+    var smoothLineY1 = d3.line().curve(d3.curveBasis)
+                        .x(function(d){ return x(d.x); })
+                        .y(function(d){ return y(d.y); });
+    var smoothLineY2 = d3.line().curve(d3.curveBasis)
+                        .x(function(d){ return x(d.x); })
+                        .y(function(d){ return y2(d.y); });
+
+    var smoothLine = {1 : smoothLineY1, 2 : smoothLineY2};
+
+    // Draw the axis
+    var xAxis = d3.axisBottom().scale(x).tickSize(10);
+    var axisX = chart.append('g').attr('class', 'xaxis axis')
+                 .attr('transform', 'translate(' + g_left + ', ' + g_bottom + ')')
+                 .call(xAxis);
+
+    var yAxis = d3.axisLeft().scale(y).tickValues(d3.range(0,max_y1,step_y1))
+                .tickSize(10);
+    var axisY = svg_y1.append('g').attr('class', 'yaxis ticks axis')
+                 .attr('transform', 'translate(95,0)')
+                 .call(yAxis);
+    var yAxisLabel = svg_y1.append('text').attr('class', 'axis yaxis')
+            .attr('transform', 'translate(20,340) rotate(-90)')
+            .text('Throughput (Mbit/sec)');
+    var y2Axis = d3.axisRight().scale(y2).tickValues(d3.range(0,max_y2,step_y2))
+                .tickSize(10);
+    var axisY2 = svg_y2.append('g').attr('class', 'y2axis ticks axis')
+                 .attr('transform', 'translate(1,0)')
+                 .call(y2Axis);
+    var y2AxisLabel = svg_y2.append('text').attr('class', 'axis y2axis')
+            .attr('transform', 'translate(90,35) rotate(90)')
+            .text('Queueing Delay (ms)');
+    // -----------------------------------
+    // Draw the grid
+    for (var col = 50; col < width; col+= 50) {
+        chart.append('path').datum([{x: col, y: 0}, {x: col, y: g_bottom}])
+                    .attr('class', 'grid')
+                    .attr('d', line);
+    }
+    chart.append('path').datum([{x: 0, y: 150}, {x: width, y: 150}])
+                        .attr('class', 'grid')
+                        .attr('d', line);
+    chart.append('path').datum([{x: 0, y: 300}, {x: width, y: 300}])
+                        .attr('class', 'grid')
+                        .attr('d', line);
+    chart.append('path').datum([{x: 0, y: 450}, {x: width, y: 450}])
+                        .attr('class', 'grid')
+                        .attr('d', line);
+
+
+    // -----------------------------------
+    // Draw the axis labels
+    chart.append('text')
+            .attr('class', 'axis')
+            .attr('transform', 'translate(' + (width / 2) + ',' + (g_bottom + 70) + ')')
+            .style('text-anchor', 'middle')
+            .text('Time (seconds since start)')
+
+
+
+    // Append the holder for line chart and fill area
+    var paths = chart.append('g');
+    for (var name in groups) {
+        var group = groups[name]
+        group.path = paths.append('path')
+                        .datum(group.data)
+                        .attr('stroke', group.color);
+    }
+    //var path = chart.append('path');
+    // var areaPath = chart.append('path');
+    // Main loop
+    var waiting = false;
+    function tick() {
+        // Generate new data
+
+
+        if (q.length <= 0) {
+            waiting = true;
+            return;
         }
+        waiting = false;
 
-        .graph .axis .tick line {
-            stroke: black;
-        }
-
-        .graph .axis .tick text {
-            fill: black;
-            font-size: 1em;
-        }
-
-        .yoneaxis {
-            font-size: 1.3em;
-            fill: purple;
-        }
-
-        .ytwoaxis {
-            font-size: 1.3em;
-            fill: #56b4e9;
-        }
-
-        .graph .axis .domain {
-            fill: none;
-            stroke: black;
-        }
-
-        .graph .group {
-            fill: none;
-            stroke: black;
-            stroke-width: 1.5;
-        }
-        </style>
-    </head>
-    <body>
-        <div class="graph" style="margin-left:50px;margin-top:50px;"></div>
-
-        <h2>Bottleneck Link: 48Mbps, 50ms RTT, 1BDP buffering</h2>
-
-        <script src="http://d3js.org/d3.v3.min.js"></script>
-				<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.0.1/socket.io.js"></script>
-        <script>
-
-        var width_seconds = 60,
-            animation_duration_ms = 500,
-            now = 0 - width_seconds;
-
-        var g_width = 1400,
-            g_height = 300
-
-        var groups = {
-            sum: {
-                value: 0,
-                color: 'purple',
-                data: d3.range(width_seconds).map(function() {
-                    return 0
-                })
-            },
-            delay: {
-                value: 0,
-                color: '#56b4e9',
-                data: d3.range(width_seconds).map(function() {
-                    return 0
-                })
-            }
-        }
-
-        var x = d3.scale.linear()
-              .domain([0, width_seconds])
-              .range([0,g_width])
-
-        var y = d3.scale.linear()
-            .domain([0, 120])
-            .range([g_height, 0])
-
-        var line = d3.svg.line()
-            .interpolate('basis')
-            .x(function(d, i) {
-                //return x(start - (width_seconds - 1 - i) * duration);
-                return x()
-            })
-            .y(function(d) {
-                return y(d) 
-            })
-
-        var svg = d3.select('.graph').append('svg')
-            .attr('class', 'chart')
-            .attr('width', g_width)
-            .attr('height', g_height + 50)
-
-        var axis = svg.append('g')
-            .attr('class', 'x axis')
-            .attr('transform', 'translate(0,' + g_height + ')')
-            .call(x.axis = d3.svg.axis().scale(x).orient('bottom'));
-        axis.selectAll("text").remove();
-
-	
-        var yscale = d3.svg.axis().scale(y).orient('left').tickValues(d3.range(10,120,10));
-
-        var yaxis = svg.append('g')
-        	.attr('class','y axis')
-        	.attr('transform', 'translate(60,0)')
-        	.call(yaxis = yscale);
-
-        svg.append("text")
-            .attr('class', 'yoneaxis')
-            .attr('transform', 'translate(600,50) rotate(0)')
-            .style("text-anchor", "middle")
-            .text("Rate (Mbps) ")
-        svg.append("text")
-            .attr('class', 'ytwoaxis')
-            .attr('transform', 'translate(900,50) rotate(0)')
-            .style("text-anchor", "middle")
-            .text("Queueing Delay (ms)")
-
-        svg.append("text")
-            .attr('class', 'axislabel')
-            .attr('transform', 'translate(725,350) ')
-            .style("text-anchor", "middle")
-            .text("Time")
-
-        var paths = svg.append('g')
+        var m = q.shift();
+        globalX = m['t']
 
         for (var name in groups) {
-            var group = groups[name]
-            group.path = paths.append('path')
-                .data([group.data])
-                .attr('class', name + ' group')
-                .style('stroke', group.color)
+            var group = groups[name];
+            group.data.push({
+                x : globalX,
+                y: m[name] // ((Math.random() * 200 + 50) >> 0) // m[name],
+            });
+            group.path.attr('d', smoothLine[group.yax])
+                .attr('class', 'smoothline');
+
         }
+        //globalX += step;
 
-        var que = [{'t':0,'sum':0,'delay':0}];
 
-        function tick() {
-            // Get next queue element
-            if (que.length <= 0) {
-                    setTimeout(tick, duration);
-                    return;
-            }
-            var m = que.shift();
-
-            now = m['t']; // new Date(start.getTime() + (m['t'] * 1000));
-
-            // Add new values
+        x.domain([globalX - (max - step), globalX]);
+        axisX.transition()
+             .duration(duration)
+             .ease(d3.easeLinear,2)
+             .call(xAxis);
+        paths.attr('transform', null)
+            .transition()
+            .duration(duration)
+            .ease(d3.easeLinear,2)
+            .attr('transform', 'translate(' + x(globalX - max) + ')')
+            .on('end', tick)
+        if (groups['delay'].data.length > max_points) {
+        //if (globalX > max_points) {
             for (var name in groups) {
-                var group = groups[name]
-                //group.data.push(group.value) // Real values arrive at irregular intervals
-                //group.data.push(Math.random() * 100)
-                group.data.push(m[name]);
-                group.path.attr('d', line)
-
-            }
-
-            // Shift domain
-            x.domain([now - (width_seconds - 2), now])
-
-            // Slide x-axis left
-            axis.transition()
-                .duration(duration)
-                .ease('linear')
-                .call(x.axis)
-
-            // Slide paths left
-            paths.attr('transform', null)
-                .transition()
-                .duration(animation_duration_ms)
-                .ease('linear')
-                .attr('transform', 'translate(' + x(now - (width_seconds - 1)) + ')')
-                .each('end', tick)
-
-            // Remove oldest data point from each group
-            for (var name in groups) {
-                var group = groups[name]
-                group.data.shift()
+                groups[name].data.shift();
             }
         }
+    }
 
-        var socket = io();
-        var last_time = new Date();
-        var since_last = 0;
-        var count = 0;
-        var total = 0;
-        var last = 0, beta = 0;
-        socket.on('data', function(m) {
-                var curr = que.length;
-                count += 1;
-                since_last = ( ((new Date()) - last_time)/1000  );
-                total += since_last;
-                console.log(since_last, total / count);
-                last_time = new Date();
+    tick();
 
+    // var t = 0;
+    // setInterval(function() {
+    //     console.log("timeout!");
+    //     var before = q.length;
+    //     q.push({
+    //         t: t,
+    //         sum: ((Math.random() * 200 + 50) >> 0),
+    //         delay: ((Math.random() * 200 + 50) >> 0)
+    //     });
+    //     t+=0.5;
+    //     if (waiting) {
+    //         tick();
+    //     }
+    // }, 700);
 
-                if ((curr-last) <= -2) {
-                        animation_duration_ms += beta;
-                        last = 0;
-                } else if ((curr-last) >= 3) {
-                        animation_duration_ms -= beta;
-                        last = curr;
-                }
+    var socket = io(); 
+    socket.on('data', function(m) {
+        q.push(m);
+        if (waiting) tick();
+    });
+    socket.on('connection', function(socket) {
+    });
+    socket.on('close', function(socket ) {
+    });
 
-                que.push(m);
-        });
-
-        //tick();
-
-    </script>
-</body>
-</html>
+</script>

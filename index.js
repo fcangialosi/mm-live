@@ -43,6 +43,6 @@ process.stdin.on('end', function() {
 });
 
 
-http.listen(8088, function() {
-	console.log('listening on 8088');
+http.listen(8080, function() {
+	console.log('listening on 8080');
 });

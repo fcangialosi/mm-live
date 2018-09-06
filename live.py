@@ -1,6 +1,7 @@
 import sys, os
 import re
 from collections import defaultdict
+import time
 
 ms_per_bin = int(sys.argv[1])
 
@@ -25,6 +26,7 @@ xmin,xmax = None,None
 curr_tbin = 0
 
 header = True
+last = time.time()
 for l in sys.stdin:
     if header:
         m = re.search(r"^# base timestamp: (\d+)", l)
@@ -51,8 +53,10 @@ for l in sys.stdin:
         dep_t = bits_to_mbps(departures[curr_tbin]['sum']) if curr_tbin in departures else 0
         del_t = max(delays[curr_tbin]) if curr_tbin in delays else 0
 
+        #sys.stdout.write("{} {} {} {}\n".format(t,dep_t,del_t,time.time() - last))
         sys.stdout.write("{} {} {}\n".format(t,dep_t,del_t))
         sys.stdout.flush()
+        last = time.time()
 
         curr_tbin = tbin
 
