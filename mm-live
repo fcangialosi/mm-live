@@ -1,16 +1,111 @@
 #!/bin/bash
 
+function usage() {
+	echo    "mm-live 0.2"
+	echo    "Frank Cangialosi <frankc@csail.mit.edu>"
+	echo    "Mahimahi live graphing utility (works over ssh!)"
+	echo    ""
+	echo    "USAGE:"
+	echo -e "\tmm-live [(uplink|downlink)] [server-port] [mm-delay ... [mm-link ...] ...]"
+	echo    ""
+	echo    "LIMITATIONS:"
+	echo -e "\t- mm-live must be the outer-most shell"
+	echo -e "\t- there must be both an mm-delay and mm-link shell inside"
+	echo -e "\t- mm-live can monitor uplink or downlink, but not both at the same time"
+	echo -e ""
+	echo    "EXAMPLE:"
+	echo -e "\tmm-live mm-delay 25 mm-link --uplink-queue-args=\"packets=200\" --uplink-queue=\"droptail\" 12Mbps 12Mbps"
+	echo -e "\t(Monitors a 12Mbps link with 200 packets of buffering and a 50ms RTT)"
+	exit 1
+}
+
+
+###############################################################################
+# Monitor uplink or downlink?
+if [ "$#" -lt 2 ]; then
+	echo -e "error: must pass 'downlink' or 'uplink' as first arg to mm-live\n"
+	usage
+fi
+if [[ "$1" != "uplink" ]] && [[ "$1" != "downlink" ]]; then
+	echo -e "error: expected 'uplink' or 'downlink', but got $1\n"
+	usage
+fi
+MONITOR_LINK=$1
+###############################################################################
+
+###############################################################################
+# Parse server port
+if [ "$#" -lt 3 ] || [ $(($2)) -le 0 ]; then
+	echo -e "error: must pass server port as second arg to mm-live\n"
+	usage
+fi
+SERVER_PORT=$2
+###############################################################################
+
+###############################################################################
+# Find RTT of delay shell
+i=0
+mm_delay_pos=-1
+for var in "$@"
+do 
+	if [[ "$var" == "mm-delay" ]]; then
+		mm_delay_pos=$((i+2))
+		break
+	fi
+	i=$((i+1))
+done
+if [ "$mm_delay_pos" -lt 0 ]; then
+	echo -e "error: could not find mm-delay shell\n"
+	usage
+fi
+one_way=${@:$mm_delay_pos:1}
+RTT=$(($one_way*2))
+###############################################################################
+
+###############################################################################
+# Find log file if it was passed
+i=0
+LOG_NAME=""
+LOG_ARG=""
+for var in "$@"
+do
+	if [[ "$var" = *"$MONITOR_LINK-log="* ]]; then
+		IFS="=" read -r -a tmp <<< "$var"
+		LOG_NAME="${tmp[1]}"
+		break
+	fi
+	if [[ "$var" = *"$MONITOR_LINK-log"* ]]; then
+		log_pos=$((i+2))
+		LOG_NAME=${@:$log_pos:1}
+		break
+	fi
+	i=$((i+1))
+done
+if [[ "$LOG_NAME" == "" ]]; then
+	LOG_NAME="/tmp/$MONITOR_LINK.log"
+	LOG_ARG="--$MONITOR_LINK-log=$LOG_NAME"
+fi
+###############################################################################
+
+
+###############################################################################
+# MAIN #
+###############################################################################
 
 # clean tmp log file
-rm -f /tmp/uplink.log
-touch /tmp/uplink.log
+echo "==> Cleaning log file"
+rm -f $LOG_NAME
+touch $LOG_NAME
 
-# start following log and feeding to web server
-tail -f /tmp/uplink.log | python live.py 50 | node index.js > server.log 2>&1 &
+echo "==> Starting server"
+tail -f $LOG_NAME | python $SRC/mm-live-parse.py $RTT | node $SRC/mm-live-server.js $SERVER_PORT > server.$SERVER_PORT.log 2>&1 &
 
 # run inner shell
-$@ --uplink-log=/tmp/uplink.log
+echo "==> Starting mahimahi"
+echo "${@:3} $LOG_ARG"
+${@:3} $LOG_ARG
 
 # stop server
-# TODO make this more graceful
 pkill -P $$
+
+###############################################################################

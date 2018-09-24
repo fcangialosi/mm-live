@@ -3,23 +3,14 @@ var http = require('http').Server(app);
 var io = require('socket.io')(http);
 
 app.get('/', function(req,res) {
-	res.sendFile(__dirname + '/index.html');
+	res.sendFile(__dirname + '/mm-live-index.html');
 });
-
-//var data = [];
 
 io.on('connection', function(socket) {
 	console.log('client connected');
 	socket.on('disconnect', function() {
 		console.log('client disconnected');
 	});
-	// var i = 0;
-	//setInterval(function() {
-	//	console.log(i);
-	//	console.log(data);
-	//	//io.emit('data', data[i]);
-	//	i+=1;
-	//}, 500);
 });
 
 process.stdin.resume();
@@ -34,8 +25,6 @@ process.stdin.on('data', function(chunk) {
 			'delay' : parseFloat(spsp[2])
 		}
 		io.emit('data', d);
-		//data.push(d);
-		//console.log(data);
 	}
 });
 process.stdin.on('end', function() {
@@ -43,6 +32,6 @@ process.stdin.on('end', function() {
 });
 
 
-http.listen(8080, function() {
-	console.log('listening on 8080');
+http.listen(parseInt(process.argv[2]), function() {
+	console.log('Visualization server listening on', process.argv[2]);
 });
